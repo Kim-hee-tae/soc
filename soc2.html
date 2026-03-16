@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactics Recorder - Zoom Sync Pro</title>
+    <title>Tactics Recorder - Professional Control v3</title>
     <style>
-        :root { --line-color: rgba(255, 255, 255, 0.9); --accent-blue: #007AFF; --accent-red: #d63031; --accent-purple: #6c5ce7; }
+        :root { --line-color: rgba(255, 255, 255, 0.9); --accent-blue: #007AFF; --accent-red: #d63031; --accent-purple: #6c5ce7; --accent-orange: #e67e22; }
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; }
         body { font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; touch-action: none; }
 
@@ -18,6 +18,7 @@
         .zoom-controls { display: flex; align-items: center; justify-content: center; gap: 15px; background: #333; padding: 5px; border-radius: 8px; margin-bottom: 2px; }
         
         button { padding: 10px 2px; cursor: pointer; border: none; border-radius: 6px; background: #333; color: white; font-weight: bold; font-size: 12px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
         button.active { background: var(--accent-blue); box-shadow: 0 0 8px rgba(0,122,255,0.4); }
         .zoom-btn { width: 40px; height: 35px; font-size: 18px; background: #444; }
         
@@ -25,7 +26,9 @@
         .rec-btn.recording { animation: blink 1s infinite; background: #ff4757; }
         .save-btn { background: #27ae60; }
         .play-btn { background: var(--accent-purple); grid-column: span 2; }
+        .play-btn.paused { background: var(--accent-orange); }
         
+        #play-status { font-size: 10px; font-weight: normal; margin-left: 5px; color: #ffeb3b; display: none; }
         @keyframes blink { 50% { opacity: 0.6; } }
 
         .storage-container { margin-top: 5px; }
@@ -36,7 +39,6 @@
         .storage-item.selected { border-color: var(--accent-blue); background: #1e3a5f; }
         .delete-btn { background: rgba(192, 57, 43, 0.8); width: 16px; height: 16px; border-radius: 50%; margin-left: 8px; font-size: 10px; display: flex; align-items: center; justify-content: center; border: none; color: white; padding: 0; }
 
-        /* 경기장 라인 */
         .line { position: absolute; border: 2px solid var(--line-color); box-sizing: border-box; pointer-events: none; }
         .half-line { top: 50%; width: 100%; border-top: 2px solid var(--line-color); transform: translateY(-50%); z-index: 1; }
         .center-circle { top: 50%; left: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); }
@@ -85,24 +87,26 @@
 
     <div class="tactic-grid">
         <button id="btn-rec" class="rec-btn" onclick="toggleRecording()">녹화 시작</button>
-        <button class="save-btn" onclick="saveTactics()">저장</button>
-        <button id="btn-play" class="play-btn" onclick="playSelectedTactic()">전술 시작 (선택 없음)</button>
+        <button id="btn-save" class="save-btn" onclick="saveTactics()">저장</button>
+        <button id="btn-play" class="play-btn" onclick="handlePlayClick()" disabled>
+            전술 시작 (선택 없음)<span id="play-status"></span>
+        </button>
     </div>
 
     <div class="tactic-grid">
-        <button id="btn-top" onclick="selectTeam('top')">Red 팀</button>
-        <button id="btn-bottom" onclick="selectTeam('bottom')">Blue 팀</button>
-        <button style="background: #e67e22;" onclick="resetAll()">초기화</button>
+        <button id="btn-top" class="team-sel-btn" onclick="selectTeam('top')">Red 팀</button>
+        <button id="btn-bottom" class="team-sel-btn" onclick="selectTeam('bottom')">Blue 팀</button>
+        <button style="background: var(--accent-orange);" onclick="resetAll()">초기화</button>
     </div>
     
-    <div class="tactic-grid mini">
-        <button onclick="applyTactic('442')">4-4-2</button>
-        <button onclick="applyTactic('433')">4-3-3</button>
-        <button onclick="applyTactic('4231')">4-2-3-1</button>
-        <button onclick="applyTactic('4141')">4-1-4-1</button>
-        <button onclick="applyTactic('4123')">4-1-2-3</button>
-        <button onclick="applyTactic('541')">5-4-1</button>
-        <button onclick="applyTactic('424')">4-2-4</button>
+    <div class="tactic-grid mini" id="formation-grid">
+        <button class="form-btn" onclick="applyTactic('442')">4-4-2</button>
+        <button class="form-btn" onclick="applyTactic('433')">4-3-3</button>
+        <button class="form-btn" onclick="applyTactic('4231')">4-2-3-1</button>
+        <button class="form-btn" onclick="applyTactic('4141')">4-1-4-1</button>
+        <button class="form-btn" onclick="applyTactic('4123')">4-1-2-3</button>
+        <button class="form-btn" onclick="applyTactic('541')">5-4-1</button>
+        <button class="form-btn" onclick="applyTactic('424')">4-2-4</button>
     </div>
 
     <div class="storage-container">
@@ -116,11 +120,18 @@
     const players = { top: [], bottom: [] };
     const pitch = document.getElementById('pitch');
     const ball = document.getElementById('ball');
+    
     let isRecording = false;
+    let isPlaying = false;
+    let isPaused = false;
     let startTime = 0;
     let currentRecording = [];
     let selectedTacticKey = null;
     let currentScale = 1.0;
+
+    let playTimers = [];
+    let currentFrameIndex = 0;
+    let playbackTacticData = [];
 
     const tactics = {
         '442': [[50,5],[18,16],[39,16],[61,16],[82,16],[18,31],[39,31],[61,31],[82,31],[35,44],[65,44]],
@@ -138,28 +149,20 @@
         renderStorageList();
     }
 
-    // Zoom 변경 및 녹화 기능 통합
     function changeZoom(delta) {
         currentScale += delta;
-        if (currentScale < 0.5) currentScale = 0.5;
-        if (currentScale > 2.0) currentScale = 2.0;
+        currentScale = Math.max(0.5, Math.min(2.0, currentScale));
         updatePlayerScale();
         document.getElementById('zoom-val').innerText = `${Math.round(currentScale * 100)}%`;
-
-        // ★ 녹화 중이라면 모든 요소의 바뀐 스케일 값을 기록
         if (isRecording) {
             recordFrame('ball', ball.style.left, ball.style.top, currentScale);
-            [...players.top, ...players.bottom].forEach(p => {
-                recordFrame(p.dataset.id, p.style.left, p.style.top, currentScale);
-            });
+            [...players.top, ...players.bottom].forEach(p => recordFrame(p.dataset.id, p.style.left, p.style.top, currentScale));
         }
     }
 
     function updatePlayerScale() {
         const allElements = [...players.top, ...players.bottom, ball];
-        allElements.forEach(el => {
-            el.style.transform = `translate(-50%, -50%) scale(${currentScale})`;
-        });
+        allElements.forEach(el => el.style.transform = `translate(-50%, -50%) scale(${currentScale})`);
     }
 
     function createTeam(team) {
@@ -176,6 +179,7 @@
     }
 
     function selectTeam(team) {
+        if (isPlaying) return; // 재생 중 팀 변경 차단
         currentActiveTeam = team;
         document.getElementById('btn-top').classList.toggle('active', team === 'top');
         document.getElementById('btn-bottom').classList.toggle('active', team === 'bottom');
@@ -192,37 +196,40 @@
     }
 
     function applyTactic(tName) {
+        if (isPlaying) return; // 재생 중 포메이션 변경 차단
         const data = tactics[tName];
         const isTop = (currentActiveTeam === 'top');
         players[currentActiveTeam].forEach((p, i) => {
             p.style.transition = 'all 0.5s ease';
             const newLeft = `${data[i][0]}%`;
             const newTop = isTop ? `${data[i][1]}%` : `${100 - data[i][1]}%`;
-            p.style.left = newLeft;
-            p.style.top = newTop;
+            p.style.left = newLeft; p.style.top = newTop;
             if (isRecording) recordFrame(p.dataset.id, newLeft, newTop, currentScale);
             setTimeout(() => p.style.transition = '', 500);
         });
     }
 
     function toggleRecording() {
+        if (isPlaying) return;
         const btn = document.getElementById('btn-rec');
+        const playBtn = document.getElementById('btn-play');
+        const saveBtn = document.getElementById('btn-save');
+
         if (!isRecording) {
             isRecording = true;
-            btn.innerText = "중지";
-            btn.classList.add('recording');
-            currentRecording = [];
-            startTime = Date.now();
+            btn.innerText = "중지"; btn.classList.add('recording');
+            playBtn.disabled = true; saveBtn.disabled = true;
+            currentRecording = []; startTime = Date.now();
             recordFrame('ball', ball.style.left, ball.style.top, currentScale);
             [...players.top, ...players.bottom].forEach(p => recordFrame(p.dataset.id, p.style.left, p.style.top, currentScale));
         } else {
             isRecording = false;
-            btn.innerText = "녹화 시작";
-            btn.classList.remove('recording');
+            btn.innerText = "녹화 시작"; btn.classList.remove('recording');
+            saveBtn.disabled = false;
+            if(selectedTacticKey) playBtn.disabled = false;
         }
     }
 
-    // scale(s) 인자 추가
     function recordFrame(id, x, y, s) {
         if (!isRecording) return;
         currentRecording.push({ t: Date.now() - startTime, id: id, x: x, y: y, s: s || currentScale });
@@ -234,6 +241,113 @@
         if (!name) return;
         const key = `tactic_${Date.now()}`;
         localStorage.setItem(key, JSON.stringify({ name: name, data: currentRecording }));
+        renderStorageList();
+    }
+
+    function handlePlayClick() {
+        if (!selectedTacticKey || isRecording) return;
+        if (!isPlaying) startPlayback(0);
+        else isPaused ? resumePlayback() : pausePlayback();
+    }
+
+    function setControlsState(disabled) {
+        // 팀 선택 버튼 비활성화
+        document.querySelectorAll('.team-sel-btn').forEach(b => b.disabled = disabled);
+        // 포메이션 버튼 비활성화
+        document.querySelectorAll('.form-btn').forEach(b => b.disabled = disabled);
+        // 녹화 및 저장 버튼
+        document.getElementById('btn-rec').disabled = disabled;
+        document.getElementById('btn-save').disabled = disabled;
+        // 저장된 리스트 클릭 방지용 스타일 제어는 render 시 체크
+    }
+
+    function startPlayback(startIndex) {
+        const item = JSON.parse(localStorage.getItem(selectedTacticKey));
+        playbackTacticData = item.data;
+        isPlaying = true; isPaused = false;
+        currentFrameIndex = startIndex;
+        
+        setControlsState(true);
+        updatePlayUI(" [재생 중...]", "일시 정지");
+        runPlaybackLoop();
+    }
+
+    function runPlaybackLoop() {
+        if (isPaused || currentFrameIndex >= playbackTacticData.length) return;
+        const baseTime = playbackTacticData[currentFrameIndex].t;
+
+        for (let i = currentFrameIndex; i < playbackTacticData.length; i++) {
+            const frame = playbackTacticData[i];
+            const delay = frame.t - baseTime;
+
+            const timerId = setTimeout(() => {
+                const el = frame.id === 'ball' ? ball : document.querySelector(`[data-id="${frame.id}"]`);
+                if (el) { 
+                    el.style.left = frame.x; el.style.top = frame.y;
+                    if (frame.s) el.style.transform = `translate(-50%, -50%) scale(${frame.s})`;
+                }
+                currentFrameIndex = i;
+                if (i === playbackTacticData.length - 1) finishPlayback();
+            }, delay);
+            playTimers.push(timerId);
+        }
+    }
+
+    function pausePlayback() {
+        isPaused = true;
+        playTimers.forEach(clearTimeout);
+        playTimers = [];
+        updatePlayUI(" [일시정지]", "다시 시작");
+        document.getElementById('btn-play').classList.add('paused');
+    }
+
+    function resumePlayback() {
+        isPaused = false;
+        updatePlayUI(" [재생 중...]", "일시 정지");
+        document.getElementById('btn-play').classList.remove('paused');
+        runPlaybackLoop();
+    }
+
+    function finishPlayback() {
+        isPlaying = false; isPaused = false;
+        playTimers = [];
+        updatePlayUI(" [재생 완료]", `시작: ${JSON.parse(localStorage.getItem(selectedTacticKey)).name}`);
+        document.getElementById('btn-play').classList.remove('paused');
+        setControlsState(false);
+    }
+
+    function clearAllTimers() {
+        playTimers.forEach(clearTimeout);
+        playTimers = []; isPlaying = false; isPaused = false;
+    }
+
+    function updatePlayUI(statusText, btnText) {
+        const playBtn = document.getElementById('btn-play');
+        playBtn.innerText = btnText;
+        const span = document.createElement('span');
+        span.id = "play-status";
+        span.innerText = statusText;
+        span.style.display = "inline";
+        playBtn.appendChild(span);
+    }
+
+    function resetAll() {
+        clearAllTimers();
+        resetToBasic('top'); resetToBasic('bottom');
+        ball.style.left = '50%'; ball.style.top = '50%';
+        currentScale = 1.0; updatePlayerScale();
+        isRecording = false; selectedTacticKey = null;
+        
+        document.getElementById('zoom-val').innerText = "100%";
+        document.getElementById('btn-rec').innerText = "녹화 시작";
+        document.getElementById('btn-rec').classList.remove('recording');
+        
+        const playBtn = document.getElementById('btn-play');
+        playBtn.innerText = `전술 시작 (선택 없음)`;
+        playBtn.disabled = true;
+        playBtn.classList.remove('paused');
+        
+        setControlsState(false);
         renderStorageList();
     }
 
@@ -249,59 +363,34 @@
             const item = JSON.parse(localStorage.getItem(key));
             const div = document.createElement('div');
             div.className = `storage-item ${selectedTacticKey === key ? 'selected' : ''}`;
-            div.innerHTML = `<span onclick="selectTactic('${key}')">${item.name}</span><button class="delete-btn" onclick="event.stopPropagation(); deleteTactic('${key}')">×</button>`;
+            // 재생 중에는 리스트 클릭도 무시하도록 처리
+            div.onclick = () => { if(!isPlaying) selectTactic(key); };
+            div.innerHTML = `<span>${item.name}</span><button class="delete-btn" onclick="event.stopPropagation(); deleteTactic('${key}')">×</button>`;
             list.appendChild(div);
         });
     }
 
     function selectTactic(key) {
+        if (isRecording || isPlaying) return; 
         selectedTacticKey = key;
         const item = JSON.parse(localStorage.getItem(key));
-        document.getElementById('btn-play').innerText = `시작: ${item.name}`;
+        updatePlayUI("", `시작: ${item.name}`);
+        document.getElementById('btn-play').disabled = false;
         renderStorageList();
     }
 
     function deleteTactic(key) {
+        if (isPlaying) return;
         if(!confirm("삭제할까요?")) return;
         localStorage.removeItem(key);
-        if (selectedTacticKey === key) {
-            selectedTacticKey = null;
-            document.getElementById('btn-play').innerText = `전술 시작 (선택 없음)`;
-        }
-        renderStorageList();
-    }
-
-    function playSelectedTactic() {
-        if (!selectedTacticKey) return alert("전술을 선택하세요");
-        const tactic = JSON.parse(localStorage.getItem(selectedTacticKey)).data;
-        tactic.forEach(frame => {
-            setTimeout(() => {
-                const el = frame.id === 'ball' ? ball : document.querySelector(`[data-id="${frame.id}"]`);
-                if (el) { 
-                    el.style.left = frame.x; 
-                    el.style.top = frame.y;
-                    // ★ 저장된 스케일(s) 값이 있으면 적용 (이전 버전 데이터와 호환성 위해 체크)
-                    if (frame.s) {
-                        el.style.transform = `translate(-50%, -50%) scale(${frame.s})`;
-                    }
-                }
-            }, frame.t);
-        });
-    }
-
-    function resetAll() {
-        resetToBasic('top'); resetToBasic('bottom');
-        ball.style.left = '50%'; ball.style.top = '50%';
-        isRecording = false; currentScale = 1.0; updatePlayerScale();
-        document.getElementById('zoom-val').innerText = "100%";
-        document.getElementById('btn-rec').innerText = "녹화 시작";
-        document.getElementById('btn-rec').classList.remove('recording');
+        if (selectedTacticKey === key) resetAll();
+        else renderStorageList();
     }
 
     function makeDraggable(el) {
         let dragging = false;
         const move = (e) => {
-            if (!dragging) return;
+            if (!dragging || isPlaying) return;
             const rect = pitch.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -312,7 +401,7 @@
             el.style.left = posX; el.style.top = posY;
             if (isRecording) recordFrame(el.dataset.id || 'ball', posX, posY, currentScale);
         };
-        const start = () => { dragging = true; el.style.transition = 'none'; };
+        const start = () => { if(!isPlaying) { dragging = true; el.style.transition = 'none'; } };
         const end = () => dragging = false;
         el.addEventListener('mousedown', start);
         window.addEventListener('mousemove', move);

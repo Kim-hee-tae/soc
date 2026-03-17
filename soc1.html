@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactics Recorder - Ghost Path v5</title>
+    <title>Tactics Recorder - Smooth v6</title>
     <style>
         :root { --line-color: rgba(255, 255, 255, 0.9); --accent-blue: #007AFF; --accent-red: #d63031; --accent-purple: #6c5ce7; --accent-orange: #e67e22; --accent-green: #27ae60; }
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; }
@@ -12,7 +12,6 @@
         #field-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #2c2c2c; padding: 5px; position: relative; overflow: hidden; box-sizing: border-box; }
         #pitch { position: relative; width: 100%; max-width: 450px; height: 100%; aspect-ratio: 450 / 750; background: #43A047; background-image: repeating-linear-gradient(#4CAF50, #4CAF50 10%, #43A047 10%, #43A047 20%); border: 3px solid var(--line-color); box-sizing: border-box; }
 
-        /* 잔상용 캔버스 스타일 */
         #path-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 
         #controls { background: #222; color: white; padding: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 100; border-top: 2px solid #444; box-sizing: border-box; }
@@ -56,7 +55,9 @@
         .penalty-arc.top { top: 16%; transform: translate(-50%, -50%); clip-path: inset(50% 0 0 0); }
         .penalty-arc.bottom { bottom: 16%; transform: translate(-50%, 50%); clip-path: inset(0 0 50% 0); }
 
-        .player, .ball { position: absolute; border-radius: 50%; cursor: grab; display: flex; align-items: center; justify-content: center; font-weight: bold; user-select: none; z-index: 10; transform: translate(-50%, -50%) scale(1); transition: transform 0.2s ease, left 0.1s linear, top 0.1s linear; }
+        .player, .ball { position: absolute; border-radius: 50%; cursor: grab; display: flex; align-items: center; justify-content: center; font-weight: bold; user-select: none; z-index: 10; transform: translate(-50%, -50%) scale(1); }
+        /* transform transition은 유지하고 위치 transition만 js로 제어 */
+        .player, .ball { transition: transform 0.2s ease; } 
         .player { width: 8.5%; aspect-ratio: 1; border: 2px solid white; color: white; font-size: 11px; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
         .team-top { background: var(--accent-red); }
         .team-bottom { background: #0984e3; }
@@ -68,7 +69,6 @@
 <div id="field-container">
     <div id="pitch">
         <canvas id="path-canvas"></canvas>
-        
         <div class="line half-line"></div>
         <div class="line center-circle"></div>
         <div class="center-spot"></div>
@@ -125,8 +125,6 @@
     let isRecording = false, isRecPaused = false, recStartTime = 0, recPausedTime = 0, totalPausedDuration = 0, currentRecording = [];
     let isPlaying = false, isPaused = false, playTimers = [], currentFrameIndex = 0, playbackTacticData = [];
     let selectedTacticKey = null, currentScale = 1.0;
-    
-    // 잔상 추적용 변수
     let lastPositions = {}; 
 
     const tactics = {
@@ -153,7 +151,9 @@
 
     function changeZoom(delta) {
         currentScale = Math.max(0.5, Math.min(2.0, currentScale + delta));
-        [...players.top, ...players.bottom, ball].forEach(el => el.style.transform = `translate(-50%, -50%) scale(${currentScale})`);
+        [...players.top, ...players.bottom, ball].forEach(el => {
+            el.style.transform = `translate(-50%, -50%) scale(${currentScale})`;
+        });
         document.getElementById('zoom-val').innerText = `선수 크기 ${Math.round(currentScale * 100)}%`;
         recordFrame('ball', ball.style.left, ball.style.top);
     }
@@ -172,7 +172,7 @@
     }
 
     function selectTeam(team) {
-        if (isPlaying) return;
+        if (isPlaying || isRecording) return;
         currentActiveTeam = team;
         document.getElementById('btn-top').classList.toggle('active', team === 'top');
         document.getElementById('btn-bottom').classList.toggle('active', team === 'bottom');
@@ -181,10 +181,10 @@
     function resetToBasic(team) {
         const isTop = (team === 'top');
         players[team].forEach((p, i) => {
-            p.style.transition = 'all 0.5s ease';
+            p.style.transition = 'left 0.5s ease, top 0.5s ease'; // 명시적으로 위치 transition 부여
             p.style.left = `${(100/12) * (i+1)}%`;
             p.style.top = isTop ? '4%' : '96%';
-            setTimeout(() => p.style.transition = '', 500);
+            setTimeout(() => p.style.transition = '', 550); // 이동 완료 후 transition 제거
         });
     }
 
@@ -193,11 +193,11 @@
         const data = tactics[tName];
         const isTop = (currentActiveTeam === 'top');
         players[currentActiveTeam].forEach((p, i) => {
-            p.style.transition = 'all 0.5s ease';
+            p.style.transition = 'left 0.5s ease, top 0.5s ease';
             const nl = `${data[i][0]}%`, nt = isTop ? `${data[i][1]}%` : `${100 - data[i][1]}%`;
             p.style.left = nl; p.style.top = nt;
             recordFrame(p.dataset.id, nl, nt);
-            setTimeout(() => p.style.transition = '', 500);
+            setTimeout(() => p.style.transition = '', 550);
         });
     }
 
@@ -243,7 +243,7 @@
         resetAll();
     }
 
-    // --- 재생 및 잔상 그리기 ---
+    // --- 재생 및 잔상 ---
     function handlePlayClick() {
         if (!selectedTacticKey || isRecording) return;
         if (!isPlaying) startPlayback(0);
@@ -254,8 +254,8 @@
         const item = JSON.parse(localStorage.getItem(selectedTacticKey));
         playbackTacticData = item.data;
         isPlaying = true; isPaused = false; currentFrameIndex = startIndex;
-        lastPositions = {}; // 잔상 위치 초기화
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // 캔버스 청소
+        lastPositions = {}; 
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
         setUIState(true);
         runPlaybackLoop();
     }
@@ -269,9 +269,7 @@
             const timerId = setTimeout(() => {
                 const el = frame.id === 'ball' ? ball : document.querySelector(`[data-id="${frame.id}"]`);
                 if (el) { 
-                    // 잔상 그리기 로직
                     drawPath(frame.id, frame.x, frame.y);
-                    
                     el.style.left = frame.x; el.style.top = frame.y;
                     el.style.transform = `translate(-50%, -50%) scale(${frame.s || 1})`;
                 }
@@ -291,20 +289,11 @@
             ctx.beginPath();
             ctx.moveTo(lastPositions[id].x, lastPositions[id].y);
             ctx.lineTo(x, y);
-            
-            // 팀별 잔상 색상 설정
             if (id === 'ball') {
-                ctx.strokeStyle = "white";
-                ctx.setLineDash([5, 5]); // 공은 점선
-                ctx.lineWidth = 1.5;
-            } else if (id.startsWith('top')) {
-                ctx.strokeStyle = "rgba(214, 48, 49, 0.4)"; // Red팀 (투명도 조절)
-                ctx.setLineDash([]);
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = "white"; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5;
             } else {
-                ctx.strokeStyle = "rgba(9, 132, 227, 0.4)"; // Blue팀
-                ctx.setLineDash([]);
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = id.startsWith('top') ? "rgba(214, 48, 49, 0.4)" : "rgba(9, 132, 227, 0.4)";
+                ctx.setLineDash([]); ctx.lineWidth = 2;
             }
             ctx.stroke();
         }
@@ -338,17 +327,32 @@
     }
 
     function resetAll() {
+        // 모든 타이머 즉각 중지
         playTimers.forEach(clearTimeout);
+        playTimers = [];
+        
         isPlaying = isPaused = isRecording = isRecPaused = false;
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // 잔상 제거
+        
+        // 데이터 리셋
+        lastPositions = {};
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        
+        // 위치 리셋
         resetToBasic('top'); resetToBasic('bottom');
+        ball.style.transition = 'left 0.5s ease, top 0.5s ease';
         ball.style.left = '50%'; ball.style.top = '50%';
+        setTimeout(() => ball.style.transition = '', 550);
+        
         currentScale = 1.0; 
-        [...players.top, ...players.bottom, ball].forEach(el => el.style.transform = `translate(-50%, -50%) scale(1)`);
-        document.getElementById('btn-rec').innerText = "녹화 시작";
-        document.getElementById('btn-rec').className = "rec-btn";
-        document.getElementById('btn-play').innerText = "전술 시작 (선택 없음)";
-        document.getElementById('btn-play').disabled = true;
+        [...players.top, ...players.bottom, ball].forEach(el => {
+            el.style.transform = `translate(-50%, -50%) scale(1)`;
+        });
+
+        // UI 리셋
+        const rb = document.getElementById('btn-rec');
+        rb.innerText = "녹화 시작"; rb.className = "rec-btn";
+        const pb = document.getElementById('btn-play');
+        pb.innerText = "전술 시작 (선택 없음)"; pb.disabled = true;
         setUIState(false); renderStorageList();
     }
 

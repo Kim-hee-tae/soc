@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactics Recorder - Pro v4</title>
+    <title>Tactics Recorder - Pro v4 (Video Export)</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
+        /* 기존 스타일 동일 */
         :root { --line-color: rgba(255, 255, 255, 0.9); --accent-blue: #007AFF; --accent-red: #d63031; --accent-purple: #6c5ce7; --accent-orange: #e67e22; --accent-green: #27ae60; }
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; }
         body { font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; touch-action: none; }
@@ -20,15 +22,14 @@
         button:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
         button.active { background: var(--accent-blue); box-shadow: 0 0 8px rgba(0,122,255,0.4); }
         
-        /* 버튼 상태별 색상 */
         .rec-btn { background: var(--accent-red); }
         .rec-btn.recording { animation: blink 1s infinite; background: #ff4757; }
         .rec-btn.paused { background: var(--accent-orange); animation: none; }
         .save-btn { background: var(--accent-green); }
         .play-btn { background: var(--accent-purple); }
         .play-btn.paused { background: var(--accent-orange); }
+        .video-btn { background: #3498db; } /* 비디오 버튼 색상 */
         
-        /* 한 줄 포메이션 스타일 */
         .formation-scroll { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; -ms-overflow-style: none; }
         .formation-scroll::-webkit-scrollbar { display: none; }
         .form-btn { flex: 0 0 auto; padding: 8px 15px; min-width: 65px; background: #444; }
@@ -41,7 +42,6 @@
         .storage-item.selected { border-color: var(--accent-blue); background: #1e3a5f; }
         .delete-btn { background: rgba(192, 57, 43, 0.8); width: 16px; height: 16px; border-radius: 50%; margin-left: 8px; font-size: 10px; border: none; color: white; }
 
-        /* 축구장 라인들 */
         .line { position: absolute; border: 2px solid var(--line-color); box-sizing: border-box; pointer-events: none; }
         .half-line { top: 50%; width: 100%; border-top: 2px solid var(--line-color); transform: translateY(-50%); z-index: 1; }
         .center-circle { top: 50%; left: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); }
@@ -96,9 +96,11 @@
     <div class="tactic-grid">
         <button id="btn-top" class="team-sel-btn" onclick="selectTeam('top')">Red 팀</button>
         <button id="btn-bottom" class="team-sel-btn" onclick="selectTeam('bottom')">Blue 팀</button>
-        <button style="background: var(--accent-orange);" onclick="resetAll()">초기화</button>
+        <button id="btn-video" class="video-btn" onclick="exportToVideo()" disabled>비디오 다운</button>
     </div>
     
+    <button style="background: var(--accent-orange); width: 100%;" onclick="resetAll()">초기화</button>
+
     <div class="formation-scroll" id="formation-grid">
         <button class="form-btn" onclick="applyTactic('442')">4-4-2</button>
         <button class="form-btn" onclick="applyTactic('433')">4-3-3</button>
@@ -113,12 +115,12 @@
 </div>
 
 <script>
+    // 기존 변수 및 초기화 로직 유지
     let currentActiveTeam = 'top';
     const players = { top: [], bottom: [] };
     const pitch = document.getElementById('pitch');
     const ball = document.getElementById('ball');
     
-    // 녹화 상태 변수
     let isRecording = false;
     let isRecPaused = false;
     let recStartTime = 0;
@@ -126,7 +128,6 @@
     let totalPausedDuration = 0;
     let currentRecording = [];
 
-    // 재생 상태 변수
     let isPlaying = false;
     let isPaused = false;
     let playTimers = [];
@@ -205,57 +206,33 @@
         });
     }
 
-    // --- 녹화 로직 (일시정지 포함) ---
     function handleRecordClick() {
         if (isPlaying) return;
-        const btn = document.getElementById('btn-rec');
-        
-        if (!isRecording) { // 녹화 시작
-            startRecording();
-        } else {
-            if (!isRecPaused) { // 일시 정지 선택 (혹은 중지는 저장 버튼으로 유도하거나 로직 선택 가능)
-                // 여기서는 버튼 하나로 [시작 -> 일시정지 -> 재개] 순환, 중지는 따로 없으므로 
-                // 녹화 중 버튼을 누르면 일시정지/재개 토글, 저장을 누르면 최종 완료로 구성
-                pauseRecording();
-            } else {
-                resumeRecording();
-            }
-        }
+        if (!isRecording) startRecording();
+        else isRecPaused ? resumeRecording() : pauseRecording();
     }
 
     function startRecording() {
-        isRecording = true; isRecPaused = false;
-        currentRecording = [];
-        recStartTime = Date.now();
-        totalPausedDuration = 0;
-        
+        isRecording = true; isRecPaused = false; currentRecording = [];
+        recStartTime = Date.now(); totalPausedDuration = 0;
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "일시 정지";
-        btn.classList.add('recording');
+        btn.innerText = "일시 정지"; btn.classList.add('recording');
         document.getElementById('btn-play').disabled = true;
         document.getElementById('btn-save').disabled = true;
-
-        // 초기 프레임 기록
         [...players.top, ...players.bottom, ball].forEach(el => recordFrame(el.dataset.id || 'ball', el.style.left, el.style.top));
     }
 
     function pauseRecording() {
-        isRecPaused = true;
-        recPausedTime = Date.now();
+        isRecPaused = true; recPausedTime = Date.now();
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "다시 시작";
-        btn.classList.remove('recording');
-        btn.classList.add('paused');
-        document.getElementById('btn-save').disabled = false; // 일시정지 중에 저장 가능
+        btn.innerText = "다시 시작"; btn.classList.remove('recording'); btn.classList.add('paused');
+        document.getElementById('btn-save').disabled = false;
     }
 
     function resumeRecording() {
-        isRecPaused = false;
-        totalPausedDuration += (Date.now() - recPausedTime);
+        isRecPaused = false; totalPausedDuration += (Date.now() - recPausedTime);
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "일시 정지";
-        btn.classList.remove('paused');
-        btn.classList.add('recording');
+        btn.innerText = "일시 정지"; btn.classList.remove('paused'); btn.classList.add('recording');
         document.getElementById('btn-save').disabled = true;
     }
 
@@ -269,12 +246,10 @@
         if (currentRecording.length === 0) return;
         const name = prompt("전술 이름", `전술 ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`);
         if (!name) return;
-        
         localStorage.setItem(`tactic_${Date.now()}`, JSON.stringify({ name, data: currentRecording }));
-        resetAll(); // 저장 후 초기화
+        resetAll();
     }
 
-    // --- 재생 로직 ---
     function handlePlayClick() {
         if (!selectedTacticKey || isRecording) return;
         if (!isPlaying) startPlayback(0);
@@ -292,7 +267,6 @@
     function runPlaybackLoop() {
         if (isPaused || currentFrameIndex >= playbackTacticData.length) return;
         const baseTime = playbackTacticData[currentFrameIndex].t;
-
         for (let i = currentFrameIndex; i < playbackTacticData.length; i++) {
             const frame = playbackTacticData[i];
             const timerId = setTimeout(() => {
@@ -324,11 +298,12 @@
 
     function finishPlayback() {
         isPlaying = false; setUIState(false);
-        updatePlayUI(" [완료]", `시작: ${JSON.parse(localStorage.getItem(selectedTacticKey)).name}`);
+        const item = JSON.parse(localStorage.getItem(selectedTacticKey));
+        updatePlayUI("", `시작: ${item ? item.name : ''}`);
     }
 
     function setUIState(disabled) {
-        document.querySelectorAll('.team-sel-btn, .form-btn, #btn-rec, #btn-save').forEach(b => b.disabled = disabled);
+        document.querySelectorAll('.team-sel-btn, .form-btn, #btn-rec, #btn-save, #btn-video').forEach(b => b.disabled = disabled);
     }
 
     function updatePlayUI(status, btnText) {
@@ -342,15 +317,10 @@
         resetToBasic('top'); resetToBasic('bottom');
         ball.style.left = '50%'; ball.style.top = '50%';
         currentScale = 1.0; updatePlayerScale();
-        
         const recBtn = document.getElementById('btn-rec');
-        recBtn.innerText = "녹화 시작";
-        recBtn.className = "rec-btn";
-        
+        recBtn.innerText = "녹화 시작"; recBtn.className = "rec-btn";
         const playBtn = document.getElementById('btn-play');
-        playBtn.innerText = "전술 시작 (선택 없음)";
-        playBtn.disabled = true;
-        
+        playBtn.innerText = "전술 시작 (선택 없음)"; playBtn.disabled = true;
         setUIState(false); renderStorageList();
     }
 
@@ -373,6 +343,7 @@
         const item = JSON.parse(localStorage.getItem(key));
         updatePlayUI("", `시작: ${item.name}`);
         document.getElementById('btn-play').disabled = false;
+        document.getElementById('btn-video').disabled = false; // 선택 시 비디오 버튼 활성화
         renderStorageList();
     }
 
@@ -399,6 +370,62 @@
         window.addEventListener('touchmove', (e) => { if(dragging) e.preventDefault(); move(e); }, { passive: false });
         window.addEventListener('touchend', () => dragging = false);
     }
+
+    // --- 비디오 다운로드 핵심 로직 ---
+    async function exportToVideo() {
+        if (!selectedTacticKey) return;
+        const item = JSON.parse(localStorage.getItem(selectedTacticKey));
+        const btnVideo = document.getElementById('btn-video');
+        
+        // UI 상태 변경
+        btnVideo.disabled = true;
+        btnVideo.innerText = "녹화중...";
+        setUIState(true);
+
+        // 1. 가상 캔버스 생성
+        const streamCanvas = document.createElement('canvas');
+        const ctx = streamCanvas.getContext('2d');
+        streamCanvas.width = pitch.clientWidth;
+        streamCanvas.height = pitch.clientHeight;
+
+        // 2. MediaRecorder 설정 (WebM 포맷)
+        const stream = streamCanvas.captureStream(30); // 30 FPS
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${item.name}.webm`;
+            a.click();
+            
+            // UI 복구
+            btnVideo.innerText = "비디오 다운";
+            setUIState(false);
+            finishPlayback();
+        };
+
+        // 3. 녹화 시작 및 전술 재생
+        recorder.start();
+        startPlayback(0);
+
+        // 4. 렌더링 루프 (화면을 캔버스에 복사)
+        const captureLoop = setInterval(async () => {
+            if (!isPlaying) {
+                clearInterval(captureLoop);
+                recorder.stop();
+                return;
+            }
+            // html2canvas로 현재 pitch 상태를 캡처하여 streamCanvas에 그림
+            const canvas = await html2canvas(pitch, { scale: 1, useCORS: true });
+            ctx.clearRect(0, 0, streamCanvas.width, streamCanvas.height);
+            ctx.drawImage(canvas, 0, 0, streamCanvas.width, streamCanvas.height);
+        }, 33); // 30fps 간격
+    }
+
     init();
 </script>
 </body>

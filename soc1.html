@@ -322,6 +322,7 @@
         const playBtn = document.getElementById('btn-play');
         playBtn.innerText = "전술 시작 (선택 없음)"; playBtn.disabled = true;
         setUIState(false); renderStorageList();
+		location.reload();
     }
 
     function renderStorageList() {

@@ -3,79 +3,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tactics Recorder - Pro v4</title>
+    <title>Tactics Recorder - Pro v5</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
-        :root { --line-color: rgba(255, 255, 255, 0.9); --accent-blue: #007AFF; --accent-red: #d63031; --accent-purple: #6c5ce7; --accent-orange: #e67e22; --accent-green: #27ae60; }
-        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; }
-        body { font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; touch-action: none; }
+        :root {
+            --line-color: rgba(255, 255, 255, 0.92);
+            --accent-blue: #007AFF;
+            --accent-red: #d63031;
+            --accent-purple: #6c5ce7;
+            --accent-orange: #e67e22;
+            --accent-green: #27ae60;
+        }
 
-        #field-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #2c2c2c; padding: 5px; position: relative; overflow: hidden; box-sizing: border-box; }
-        #pitch { position: relative; width: 100%; max-width: 450px; height: 100%; aspect-ratio: 450 / 750; background: #43A047; background-image: repeating-linear-gradient(#4CAF50, #4CAF50 10%, #43A047 10%, #43A047 20%); border: 3px solid var(--line-color); box-sizing: border-box; }
+        html, body {
+            height: 100%; margin: 0; padding: 0;
+            overflow: hidden; background-color: #1a1a1a;
+        }
+        body {
+            font-family: 'Pretendard', sans-serif;
+            display: flex; flex-direction: column; touch-action: none;
+        }
 
-        #controls { background: #222; color: white; padding: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 100; border-top: 2px solid #444; box-sizing: border-box; }
+        /* ──────────────────────────────────────────
+           피치 컨테이너
+        ────────────────────────────────────────── */
+        #field-container {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            background: #1a3a1a; padding: 5px;
+            position: relative; overflow: hidden; box-sizing: border-box;
+        }
+
+        /* ──────────────────────────────────────────
+           사실적 축구장 배경
+           - 세로 줄무늬(밝은/어두운 교대) 위에
+           - 전체 약한 그라데이션(상단↔하단 살짝 밝기 차이)
+        ────────────────────────────────────────── */
+        #pitch {
+            position: relative;
+            width: 100%; max-width: 450px;
+            height: 100%; aspect-ratio: 450 / 750;
+            box-sizing: border-box;
+
+            /* 1) 베이스: 짙은 초록 */
+            background-color: #2e8b3a;
+
+            /* 2) 세로 줄무늬 (밝은↔어두운 교대, 10% 단위 10줄) */
+            background-image:
+                /* 전체 수직 그라데이션 (사진처럼 상단이 조금 더 밝음) */
+                linear-gradient(
+                    to bottom,
+                    rgba(255,255,255,0.07) 0%,
+                    rgba(0,0,0,0.0)        40%,
+                    rgba(0,0,0,0.08)       100%
+                ),
+                /* 세로 줄무늬 */
+                repeating-linear-gradient(
+                    to bottom,
+                    rgba(0,0,0,0.0)          0%,
+                    rgba(0,0,0,0.0)          9%,
+                    rgba(0,0,0,0.120)         9%,
+                    rgba(0,0,0,0.120)         10%,
+                    rgba(255,255,255,0.08)   10%,
+                    rgba(255,255,255,0.08)   19%,
+                    rgba(255,255,255,0.0)    19%,
+                    rgba(255,255,255,0.0)    20%
+                );
+
+            border: 3px solid rgba(255,255,255,0.5);
+            /* 외곽선에 약한 glow */
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.35), 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* ──────────────────────────────────────────
+           컨트롤 패널 (기존 동일)
+        ────────────────────────────────────────── */
+        #controls {
+            background: #222; color: white;
+            padding: 10px; display: flex; flex-direction: column; gap: 6px;
+            z-index: 100; border-top: 2px solid #444; box-sizing: border-box;
+        }
         .tactic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-        .zoom-controls { display: flex; align-items: center; justify-content: center; gap: 15px; background: #333; padding: 4px; border-radius: 8px; }
-        
-        button { padding: 10px 2px; cursor: pointer; border: none; border-radius: 6px; background: #333; color: white; font-weight: bold; font-size: 12px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        .zoom-controls {
+            display: flex; align-items: center; justify-content: center;
+            gap: 15px; background: #333; padding: 4px; border-radius: 8px;
+        }
+
+        button {
+            padding: 10px 2px; cursor: pointer; border: none;
+            border-radius: 6px; background: #333; color: white;
+            font-weight: bold; font-size: 12px; transition: 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
         button:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
         button.active { background: var(--accent-blue); box-shadow: 0 0 8px rgba(0,122,255,0.4); }
-        
-        /* 버튼 상태별 색상 */
-        .rec-btn { background: var(--accent-red); }
+
+        .rec-btn    { background: var(--accent-red); }
         .rec-btn.recording { animation: blink 1s infinite; background: #ff4757; }
-        .rec-btn.paused { background: var(--accent-orange); animation: none; }
-        .save-btn { background: var(--accent-green); }
-        .play-btn { background: var(--accent-purple); }
+        .rec-btn.paused    { background: var(--accent-orange); animation: none; }
+        .save-btn   { background: var(--accent-green); }
+        .play-btn   { background: var(--accent-purple); }
         .play-btn.paused { background: var(--accent-orange); }
-        
-        /* 한 줄 포메이션 스타일 */
-        .formation-scroll { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: none; -ms-overflow-style: none; }
+        .video-btn  { background: #3498db; }
+
+        .formation-scroll {
+            display: flex; gap: 6px; overflow-x: auto; padding: 4px 0;
+            scrollbar-width: none; -ms-overflow-style: none;
+        }
         .formation-scroll::-webkit-scrollbar { display: none; }
         .form-btn { flex: 0 0 auto; padding: 8px 15px; min-width: 65px; background: #444; }
 
         #play-status { font-size: 10px; font-weight: normal; margin-left: 5px; color: #ffeb3b; }
         @keyframes blink { 50% { opacity: 0.6; } }
 
-        .storage-list { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
-        .storage-item { flex: 0 0 auto; display: flex; align-items: center; background: #333; padding: 6px 12px; border-radius: 20px; font-size: 11px; border: 1px solid #444; }
+        .storage-list {
+            display: flex; gap: 8px; overflow-x: auto;
+            padding: 4px 0 8px; scrollbar-width: none;
+        }
+        .storage-item {
+            flex: 0 0 auto; display: flex; align-items: center;
+            background: #333; padding: 6px 12px; border-radius: 20px;
+            font-size: 11px; border: 1px solid #444;
+        }
         .storage-item.selected { border-color: var(--accent-blue); background: #1e3a5f; }
-        .delete-btn { background: rgba(192, 57, 43, 0.8); width: 16px; height: 16px; border-radius: 50%; margin-left: 8px; font-size: 10px; border: none; color: white; }
+        .delete-btn {
+            background: rgba(192,57,43,0.8); width: 16px; height: 16px;
+            border-radius: 50%; margin-left: 8px; font-size: 10px;
+            border: none; color: white;
+        }
 
-        /* 축구장 라인들 */
-        .line { position: absolute; border: 2px solid var(--line-color); box-sizing: border-box; pointer-events: none; }
-        .half-line { top: 50%; width: 100%; border-top: 2px solid var(--line-color); transform: translateY(-50%); z-index: 1; }
-        .center-circle { top: 50%; left: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); }
-        .center-spot { top: 50%; left: 50%; width: 6px; height: 6px; background: var(--line-color); border-radius: 50%; transform: translate(-50%, -50%); z-index: 2; }
-        .penalty-area { left: 50%; width: 58%; height: 16%; transform: translateX(-50%); }
-        .penalty-area.top { top: 0; border-top: none; }
-        .penalty-area.bottom { bottom: 0; border-bottom: none; }
-        .goal-area { left: 50%; width: 26%; height: 6%; transform: translateX(-50%); }
-        .goal-area.top { top: 0; border-top: none; }
-        .goal-area.bottom { bottom: 0; border-bottom: none; }
-        .penalty-arc { left: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; transform: translateX(-50%); }
-        .penalty-arc.top { top: 16%; transform: translate(-50%, -50%); clip-path: inset(50% 0 0 0); }
-        .penalty-arc.bottom { bottom: 16%; transform: translate(-50%, 50%); clip-path: inset(0 0 50% 0); }
+        /* SVG 피치 라인 오버레이 */
+        #pitch-svg {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+            overflow: visible;
+        }
 
-        .player, .ball { position: absolute; border-radius: 50%; cursor: grab; display: flex; align-items: center; justify-content: center; font-weight: bold; user-select: none; z-index: 10; transform: translate(-50%, -50%) scale(1); transition: transform 0.2s ease, left 0.1s linear, top 0.1s linear; }
-        .player { width: 8.5%; aspect-ratio: 1; border: 2px solid white; color: white; font-size: 11px; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
-        .team-top { background: var(--accent-red); }
+        /* ──────────────────────────────────────────
+           선수 & 공 (기존 동일)
+        ────────────────────────────────────────── */
+        .player, .ball {
+            position: absolute; border-radius: 50%; cursor: grab;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; user-select: none; z-index: 10;
+            transform: translate(-50%, -50%) scale(1);
+            transition: transform 0.2s ease, left 0.1s linear, top 0.1s linear;
+        }
+        .player {
+            width: 8.5%; aspect-ratio: 1;
+            border: 2px solid white; color: white;
+            font-size: 11px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        .team-top    { background: var(--accent-red); }
         .team-bottom { background: #0984e3; }
-        .ball { width: 6%; aspect-ratio: 1; background: white; border: 1px solid #333; z-index: 20; background-image: radial-gradient(circle at 30% 30%, #fff, #ccc); }
+        .ball {
+            width: 6%; aspect-ratio: 1; z-index: 20;
+            /* 사실적 공 */
+            background: radial-gradient(circle at 35% 35%, #ffffff, #cccccc 60%, #999999);
+            border: 1px solid #555;
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.5), inset -1px -1px 3px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
 
 <div id="field-container">
     <div id="pitch">
-        <div class="line half-line"></div>
-        <div class="line center-circle"></div>
-        <div class="center-spot"></div>
-        <div class="line penalty-area top"></div>
-        <div class="line goal-area top"></div>
-        <div class="line penalty-arc top"></div>
-        <div class="line penalty-area bottom"></div>
-        <div class="line goal-area bottom"></div>
-        <div class="line penalty-arc bottom"></div>
+        <!--
+            피치 라인 전체를 SVG 하나로 통합.
+            viewBox="0 0 100 167" → % 좌표계 그대로 사용
+            html2canvas가 clip-path 없이 완벽히 캡처 가능
+        -->
+        <svg id="pitch-svg" viewBox="0 0 100 167" preserveAspectRatio="none"
+             xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- 페널티 아크 TOP: 중심(50, 26.7=16%*167/100) r=18.4(=11%*167/100)
+                     페널티박스 상단(top=16%) 바깥쪽 반원만 표시 -->
+                <!-- TOP 아크: 박스 하단선(y=26.7) 아래쪽(필드 중앙 방향)만 표시 -->
+                <clipPath id="clip-arc-top">
+                    <rect x="0" y="26.7" width="100" height="140.6"/>
+                </clipPath>
+                <!-- BOTTOM 아크: 박스 상단선(y=140.3) 위쪽(필드 중앙 방향)만 표시 -->
+                <clipPath id="clip-arc-bottom">
+                    <rect x="0" y="0" width="100" height="140.3"/>
+                </clipPath>
+                <!-- 코너 아크: 각 모서리 밖 1/4원만 -->
+                <clipPath id="clip-corner-tl">
+                    <rect x="0" y="0" width="4" height="4"/>
+                </clipPath>
+                <clipPath id="clip-corner-tr">
+                    <rect x="96" y="0" width="4" height="4"/>
+                </clipPath>
+                <clipPath id="clip-corner-bl">
+                    <rect x="0" y="163" width="4" height="4"/>
+                </clipPath>
+                <clipPath id="clip-corner-br">
+                    <rect x="96" y="163" width="4" height="4"/>
+                </clipPath>
+            </defs>
+
+            <!-- 공통 스타일 -->
+            <g fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="0.6" stroke-linecap="round">
+
+                <!-- 하프라인 -->
+                <line x1="0" y1="83.5" x2="100" y2="83.5"/>
+
+                <!-- 센터 서클 (반지름 11%) -->
+                <circle cx="50" cy="83.5" r="11"/>
+                <!-- 센터 스팟 -->
+                <circle cx="50" cy="83.5" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
+
+                <!-- ── 상단 페널티 박스 (top=0, h=16%, w=58%, 중앙정렬) ── -->
+                <!-- top border 없음: y=0에서 시작, 아래쪽 3면만 -->
+                <rect x="21" y="0" width="58" height="26.7" stroke-width="0.6"/>
+                <!-- 골 에어리어 (top=0, h=6%, w=26%) -->
+                <rect x="37" y="0" width="26" height="10" stroke-width="0.6"/>
+                <!-- 페널티 아크 TOP: 페널티박스 하단선(y=26.7) 바깥으로 튀어나온 반원
+                     중심 = (50, 26.7), r = 약 9.8% (= 페널티스팟~박스하단 거리와 같은 반지름)
+                     페널티박스 상단(y=0~26.7) 영역을 제외하고 그림 -->
+                <circle cx="50" cy="26.7" r="9.8" clip-path="url(#clip-arc-top)" stroke-width="0.6"/>
+                <!-- 페널티 스팟 TOP (11% = 18.4) -->
+                <circle cx="50" cy="18.4" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
+
+                <!-- ── 하단 페널티 박스 (bottom=0 → y=167-26.7=140.3) ── -->
+                <rect x="21" y="140.3" width="58" height="26.7" stroke-width="0.6"/>
+                <!-- 골 에어리어 (y=167-10=157) -->
+                <rect x="37" y="157" width="26" height="10" stroke-width="0.6"/>
+                <!-- 페널티 아크 BOTTOM: 박스 상단선(y=140.3) 바깥으로 튀어나온 반원 -->
+                <circle cx="50" cy="140.3" r="9.8" clip-path="url(#clip-arc-bottom)" stroke-width="0.6"/>
+                <!-- 페널티 스팟 BOTTOM (bottom 11% → y=167-18.4=148.6) -->
+                <circle cx="50" cy="148.6" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
+
+                <!-- 코너 아크 (r=3, 1/4원) -->
+                <circle cx="0"   cy="0"   r="3" clip-path="url(#clip-corner-tl)" stroke-width="0.6"/>
+                <circle cx="100" cy="0"   r="3" clip-path="url(#clip-corner-tr)" stroke-width="0.6"/>
+                <circle cx="0"   cy="167" r="3" clip-path="url(#clip-corner-bl)" stroke-width="0.6"/>
+                <circle cx="100" cy="167" r="3" clip-path="url(#clip-corner-br)" stroke-width="0.6"/>
+
+            </g>
+        </svg>
+
         <div id="ball" class="ball" data-id="ball" style="left: 50%; top: 50%;"></div>
     </div>
 </div>
@@ -88,17 +255,19 @@
     </div>
 
     <div class="tactic-grid">
-        <button id="btn-rec" class="rec-btn" onclick="handleRecordClick()">녹화 시작</button>
+        <button id="btn-rec"  class="rec-btn"  onclick="handleRecordClick()">녹화 시작</button>
         <button id="btn-save" class="save-btn" onclick="saveTactics()">저장</button>
         <button id="btn-play" class="play-btn" onclick="handlePlayClick()" disabled>전술 시작 (선택 없음)</button>
     </div>
 
     <div class="tactic-grid">
-        <button id="btn-top" class="team-sel-btn" onclick="selectTeam('top')">Red 팀</button>
+        <button id="btn-top"    class="team-sel-btn" onclick="selectTeam('top')">Red 팀</button>
         <button id="btn-bottom" class="team-sel-btn" onclick="selectTeam('bottom')">Blue 팀</button>
-        <button style="background: var(--accent-orange);" onclick="resetAll()">초기화</button>
+        <button id="btn-video"  class="video-btn"    onclick="exportToVideo()" disabled>비디오 다운</button>
     </div>
-    
+
+    <button style="background: var(--accent-orange); width: 100%;" onclick="resetAll()">초기화</button>
+
     <div class="formation-scroll" id="formation-grid">
         <button class="form-btn" onclick="applyTactic('442')">4-4-2</button>
         <button class="form-btn" onclick="applyTactic('433')">4-3-3</button>
@@ -116,38 +285,29 @@
     let currentActiveTeam = 'top';
     const players = { top: [], bottom: [] };
     const pitch = document.getElementById('pitch');
-    const ball = document.getElementById('ball');
-    
-    // 녹화 상태 변수
-    let isRecording = false;
-    let isRecPaused = false;
-    let recStartTime = 0;
-    let recPausedTime = 0;
-    let totalPausedDuration = 0;
+    const ball  = document.getElementById('ball');
+
+    let isRecording = false, isRecPaused = false;
+    let recStartTime = 0, recPausedTime = 0, totalPausedDuration = 0;
     let currentRecording = [];
 
-    // 재생 상태 변수
-    let isPlaying = false;
-    let isPaused = false;
-    let playTimers = [];
-    let currentFrameIndex = 0;
-    let playbackTacticData = [];
+    let isPlaying = false, isPaused = false;
+    let playTimers = [], currentFrameIndex = 0, playbackTacticData = [];
 
-    let selectedTacticKey = null;
-    let currentScale = 1.0;
+    let selectedTacticKey = null, currentScale = 1.0;
 
     const tactics = {
-        '442': [[50,5],[18,16],[39,16],[61,16],[82,16],[18,31],[39,31],[61,31],[82,31],[35,44],[65,44]],
-        '433': [[50,5],[18,16],[39,16],[61,16],[82,16],[27,29],[50,32],[73,29],[18,45],[50,47],[82,45]],
+        '442':  [[50,5],[18,16],[39,16],[61,16],[82,16],[18,31],[39,31],[61,31],[82,31],[35,44],[65,44]],
+        '433':  [[50,5],[18,16],[39,16],[61,16],[82,16],[27,29],[50,32],[73,29],[18,45],[50,47],[82,45]],
         '4231': [[50,5],[18,16],[38,16],[62,16],[82,16],[35,28],[65,28],[18,40],[50,40],[82,40],[50,48]],
         '4141': [[50,5],[18,16],[39,16],[61,16],[82,16],[50,25],[15,38],[38,38],[62,38],[85,38],[50,48]],
         '4123': [[50,5],[18,15],[39,15],[61,15],[82,15],[50,24],[33,35],[67,35],[18,46],[50,48],[82,46]],
-        '541': [[50,5],[13,13],[32,15],[50,16],[68,15],[87,13],[18,29],[39,31],[61,31],[82,29],[50,45]],
-        '424': [[50,5],[18,16],[39,16],[61,16],[82,16],[38,31],[62,31],[15,46],[38,48],[62,48],[85,46]]
+        '541':  [[50,5],[13,13],[32,15],[50,16],[68,15],[87,13],[18,29],[39,31],[61,31],[82,29],[50,45]],
+        '424':  [[50,5],[18,16],[39,16],[61,16],[82,16],[38,31],[62,31],[15,46],[38,48],[62,48],[85,46]]
     };
 
     function init() {
-        createTeam('top'); createTeam('bottom'); selectTeam('bottom'); 
+        createTeam('top'); createTeam('bottom'); selectTeam('bottom');
         makeDraggable(ball); renderStorageList();
     }
 
@@ -159,18 +319,19 @@
     }
 
     function updatePlayerScale() {
-        [...players.top, ...players.bottom, ball].forEach(el => el.style.transform = `translate(-50%, -50%) scale(${currentScale})`);
+        [...players.top, ...players.bottom, ball].forEach(el =>
+            el.style.transform = `translate(-50%, -50%) scale(${currentScale})`);
     }
 
     function createTeam(team) {
-        for(let i=0; i<11; i++) {
+        for (let i = 0; i < 11; i++) {
             const p = document.createElement('div');
             p.className = `player team-${team}`;
             p.dataset.id = `${team}-${i}`;
             p.innerText = i + 1;
             pitch.appendChild(p);
             players[team].push(p);
-            makeDraggable(p); 
+            makeDraggable(p);
         }
         resetToBasic(team);
     }
@@ -187,94 +348,70 @@
         players[team].forEach((p, i) => {
             p.style.transition = 'all 0.5s ease';
             p.style.left = `${(100/12) * (i+1)}%`;
-            p.style.top = isTop ? '4%' : '96%';
+            p.style.top  = isTop ? '4%' : '96%';
             setTimeout(() => p.style.transition = '', 500);
         });
     }
 
     function applyTactic(tName) {
         if (isPlaying) return;
-        const data = tactics[tName];
+        const data  = tactics[tName];
         const isTop = (currentActiveTeam === 'top');
         players[currentActiveTeam].forEach((p, i) => {
             p.style.transition = 'all 0.5s ease';
-            const nl = `${data[i][0]}%`, nt = isTop ? `${data[i][1]}%` : `${100 - data[i][1]}%`;
+            const nl = `${data[i][0]}%`;
+            const nt = isTop ? `${data[i][1]}%` : `${100 - data[i][1]}%`;
             p.style.left = nl; p.style.top = nt;
             recordFrame(p.dataset.id, nl, nt);
             setTimeout(() => p.style.transition = '', 500);
         });
     }
 
-    // --- 녹화 로직 (일시정지 포함) ---
     function handleRecordClick() {
         if (isPlaying) return;
-        const btn = document.getElementById('btn-rec');
-        
-        if (!isRecording) { // 녹화 시작
-            startRecording();
-        } else {
-            if (!isRecPaused) { // 일시 정지 선택 (혹은 중지는 저장 버튼으로 유도하거나 로직 선택 가능)
-                // 여기서는 버튼 하나로 [시작 -> 일시정지 -> 재개] 순환, 중지는 따로 없으므로 
-                // 녹화 중 버튼을 누르면 일시정지/재개 토글, 저장을 누르면 최종 완료로 구성
-                pauseRecording();
-            } else {
-                resumeRecording();
-            }
-        }
+        if (!isRecording) startRecording();
+        else isRecPaused ? resumeRecording() : pauseRecording();
     }
 
     function startRecording() {
-        isRecording = true; isRecPaused = false;
-        currentRecording = [];
-        recStartTime = Date.now();
-        totalPausedDuration = 0;
-        
+        isRecording = true; isRecPaused = false; currentRecording = [];
+        recStartTime = Date.now(); totalPausedDuration = 0;
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "일시 정지";
-        btn.classList.add('recording');
+        btn.innerText = "일시 정지"; btn.classList.add('recording');
         document.getElementById('btn-play').disabled = true;
         document.getElementById('btn-save').disabled = true;
-
-        // 초기 프레임 기록
-        [...players.top, ...players.bottom, ball].forEach(el => recordFrame(el.dataset.id || 'ball', el.style.left, el.style.top));
+        [...players.top, ...players.bottom, ball].forEach(el =>
+            recordFrame(el.dataset.id || 'ball', el.style.left, el.style.top));
     }
 
     function pauseRecording() {
-        isRecPaused = true;
-        recPausedTime = Date.now();
+        isRecPaused = true; recPausedTime = Date.now();
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "다시 시작";
-        btn.classList.remove('recording');
-        btn.classList.add('paused');
-        document.getElementById('btn-save').disabled = false; // 일시정지 중에 저장 가능
+        btn.innerText = "다시 시작"; btn.classList.remove('recording'); btn.classList.add('paused');
+        document.getElementById('btn-save').disabled = false;
     }
 
     function resumeRecording() {
-        isRecPaused = false;
-        totalPausedDuration += (Date.now() - recPausedTime);
+        isRecPaused = false; totalPausedDuration += (Date.now() - recPausedTime);
         const btn = document.getElementById('btn-rec');
-        btn.innerText = "일시 정지";
-        btn.classList.remove('paused');
-        btn.classList.add('recording');
+        btn.innerText = "일시 정지"; btn.classList.remove('paused'); btn.classList.add('recording');
         document.getElementById('btn-save').disabled = true;
     }
 
     function recordFrame(id, x, y) {
         if (!isRecording || isRecPaused) return;
         const time = Date.now() - recStartTime - totalPausedDuration;
-        currentRecording.push({ t: time, id: id, x: x, y: y, s: currentScale });
+        currentRecording.push({ t: time, id, x, y, s: currentScale });
     }
 
     function saveTactics() {
         if (currentRecording.length === 0) return;
-        const name = prompt("전술 이름", `전술 ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`);
+        const name = prompt("전술 이름", `전술 ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
         if (!name) return;
-        
         localStorage.setItem(`tactic_${Date.now()}`, JSON.stringify({ name, data: currentRecording }));
-        resetAll(); // 저장 후 초기화
+        resetAll();
     }
 
-    // --- 재생 로직 ---
     function handlePlayClick() {
         if (!selectedTacticKey || isRecording) return;
         if (!isPlaying) startPlayback(0);
@@ -292,12 +429,14 @@
     function runPlaybackLoop() {
         if (isPaused || currentFrameIndex >= playbackTacticData.length) return;
         const baseTime = playbackTacticData[currentFrameIndex].t;
-
-        for (let i = currentFrameIndex; i < playbackTacticData.length; i++) {
+        const startIdx = currentFrameIndex;
+        for (let i = startIdx; i < playbackTacticData.length; i++) {
             const frame = playbackTacticData[i];
             const timerId = setTimeout(() => {
-                const el = frame.id === 'ball' ? ball : document.querySelector(`[data-id="${frame.id}"]`);
-                if (el) { 
+                const el = frame.id === 'ball'
+                    ? ball
+                    : document.querySelector(`[data-id="${frame.id}"]`);
+                if (el) {
                     el.style.left = frame.x; el.style.top = frame.y;
                     el.style.transform = `translate(-50%, -50%) scale(${frame.s || 1})`;
                 }
@@ -324,11 +463,13 @@
 
     function finishPlayback() {
         isPlaying = false; setUIState(false);
-        updatePlayUI(" [완료]", `시작: ${JSON.parse(localStorage.getItem(selectedTacticKey)).name}`);
+        const item = JSON.parse(localStorage.getItem(selectedTacticKey));
+        updatePlayUI("", `시작: ${item ? item.name : ''}`);
     }
 
     function setUIState(disabled) {
-        document.querySelectorAll('.team-sel-btn, .form-btn, #btn-rec, #btn-save').forEach(b => b.disabled = disabled);
+        document.querySelectorAll('.team-sel-btn,.form-btn,#btn-rec,#btn-save,#btn-video')
+            .forEach(b => b.disabled = disabled);
     }
 
     function updatePlayUI(status, btnText) {
@@ -339,19 +480,27 @@
     function resetAll() {
         playTimers.forEach(clearTimeout);
         isPlaying = isPaused = isRecording = isRecPaused = false;
+        currentRecording = []; currentFrameIndex = 0;
+        selectedTacticKey = null;
+
         resetToBasic('top'); resetToBasic('bottom');
         ball.style.left = '50%'; ball.style.top = '50%';
         currentScale = 1.0; updatePlayerScale();
-        
+
         const recBtn = document.getElementById('btn-rec');
-        recBtn.innerText = "녹화 시작";
-        recBtn.className = "rec-btn";
-        
+        recBtn.innerText = "녹화 시작"; recBtn.className = "rec-btn";
+
         const playBtn = document.getElementById('btn-play');
-        playBtn.innerText = "전술 시작 (선택 없음)";
-        playBtn.disabled = true;
-        
-        setUIState(false); renderStorageList();
+        playBtn.innerText = "전술 시작 (선택 없음)"; playBtn.disabled = true;
+        playBtn.className = "play-btn";
+
+        document.getElementById('btn-video').disabled = true;
+        document.getElementById('btn-top').classList.remove('active');
+        document.getElementById('btn-bottom').classList.remove('active');
+
+        setUIState(false);
+        selectTeam('bottom');
+        renderStorageList();
     }
 
     function renderStorageList() {
@@ -360,10 +509,11 @@
         const keys = Object.keys(localStorage).filter(k => k.startsWith('tactic_')).sort();
         keys.forEach(key => {
             const item = JSON.parse(localStorage.getItem(key));
-            const div = document.createElement('div');
+            const div  = document.createElement('div');
             div.className = `storage-item ${selectedTacticKey === key ? 'selected' : ''}`;
-            div.onclick = () => { if(!isPlaying && !isRecording) selectTactic(key); };
-            div.innerHTML = `<span>${item.name}</span><button class="delete-btn" onclick="event.stopPropagation(); deleteTactic('${key}')">×</button>`;
+            div.onclick = () => { if (!isPlaying && !isRecording) selectTactic(key); };
+            div.innerHTML = `<span>${item.name}</span>
+                <button class="delete-btn" onclick="event.stopPropagation();deleteTactic('${key}')">×</button>`;
             list.appendChild(div);
         });
     }
@@ -372,33 +522,74 @@
         selectedTacticKey = key;
         const item = JSON.parse(localStorage.getItem(key));
         updatePlayUI("", `시작: ${item.name}`);
-        document.getElementById('btn-play').disabled = false;
+        document.getElementById('btn-play').disabled  = false;
+        document.getElementById('btn-video').disabled = false;
         renderStorageList();
     }
 
     function deleteTactic(key) {
-        if(confirm("삭제할까요?")) { localStorage.removeItem(key); resetAll(); }
+        if (confirm("삭제할까요?")) { localStorage.removeItem(key); resetAll(); }
     }
 
     function makeDraggable(el) {
         let dragging = false;
         const move = (e) => {
             if (!dragging || isPlaying || isRecPaused) return;
-            const rect = pitch.getBoundingClientRect();
+            const rect   = pitch.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const px = Math.max(0, Math.min(((clientX - rect.left) / rect.width) * 100, 100)) + '%';
-            const py = Math.max(0, Math.min(((clientY - rect.top) / rect.height) * 100, 100)) + '%';
+            const px = Math.max(0, Math.min(((clientX - rect.left)  / rect.width)  * 100, 100)) + '%';
+            const py = Math.max(0, Math.min(((clientY - rect.top)   / rect.height) * 100, 100)) + '%';
             el.style.left = px; el.style.top = py;
             recordFrame(el.dataset.id || 'ball', px, py);
         };
-        el.addEventListener('mousedown', () => { if(!isPlaying) dragging = true; });
+        el.addEventListener('mousedown',  () => { if (!isPlaying) dragging = true; });
         window.addEventListener('mousemove', move);
-        window.addEventListener('mouseup', () => dragging = false);
-        el.addEventListener('touchstart', () => { if(!isPlaying) dragging = true; });
-        window.addEventListener('touchmove', (e) => { if(dragging) e.preventDefault(); move(e); }, { passive: false });
-        window.addEventListener('touchend', () => dragging = false);
+        window.addEventListener('mouseup',   () => dragging = false);
+        el.addEventListener('touchstart',  () => { if (!isPlaying) dragging = true; });
+        window.addEventListener('touchmove', (e) => { if (dragging) e.preventDefault(); move(e); }, { passive: false });
+        window.addEventListener('touchend',  () => dragging = false);
     }
+
+    /* ── 비디오 내보내기 (기존 동일) ── */
+    async function exportToVideo() {
+        if (!selectedTacticKey) return;
+        const item    = JSON.parse(localStorage.getItem(selectedTacticKey));
+        const btnVideo = document.getElementById('btn-video');
+
+        btnVideo.disabled = true; btnVideo.innerText = "녹화중...";
+        setUIState(true);
+
+        const streamCanvas = document.createElement('canvas');
+        const ctx = streamCanvas.getContext('2d');
+        streamCanvas.width  = pitch.clientWidth;
+        streamCanvas.height = pitch.clientHeight;
+
+        const stream   = streamCanvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks   = [];
+
+        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = `${item.name}.webm`; a.click();
+            btnVideo.innerText = "비디오 다운";
+            setUIState(false); finishPlayback();
+        };
+
+        recorder.start();
+        startPlayback(0);
+
+        const captureLoop = setInterval(async () => {
+            if (!isPlaying) { clearInterval(captureLoop); recorder.stop(); return; }
+            const canvas = await html2canvas(pitch, { scale: 1, useCORS: true });
+            ctx.clearRect(0, 0, streamCanvas.width, streamCanvas.height);
+            ctx.drawImage(canvas, 0, 0, streamCanvas.width, streamCanvas.height);
+        }, 33);
+    }
+
     init();
 </script>
 </body>

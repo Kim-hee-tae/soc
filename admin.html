@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tactics Recorder - Admin</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --line-color: rgba(255, 255, 255, 0.92);
+            --accent-blue: #007AFF;
+            --accent-red: #d63031;
+            --accent-purple: #6c5ce7;
+            --accent-orange: #e67e22;
+            --accent-green: #27ae60;
+        }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; touch-action: none; }
+        #field-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #1a3a1a; padding: 5px; position: relative; overflow: hidden; box-sizing: border-box; }
+        #pitch { position: relative; width: 100%; max-width: 450px; height: 100%; aspect-ratio: 450 / 750; background-color: #2e8b3a; background-image: linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.0) 50%, rgba(0,0,0,0.1) 100%), repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.05) 10%, rgba(0, 0, 0, 0.07) 10%, rgba(0, 0, 0, 0.07) 20%); border: 3px solid rgba(255,255,255,0.5); box-shadow: inset 0 0 30px rgba(0,0,0,0.35), 0 0 10px rgba(0,0,0,0.5); }
+        #controls { background: #222; color: white; padding: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 100; border-top: 2px solid #444; }
+        .tactic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .zoom-controls { display: flex; align-items: center; justify-content: center; gap: 15px; background: #333; padding: 4px; border-radius: 8px; }
+        button { padding: 10px 2px; cursor: pointer; border: none; border-radius: 6px; background: #333; color: white; font-weight: bold; font-size: 12px; transition: 0.2s; }
+        button:disabled { opacity: 0.3; filter: grayscale(1); }
+        button.active { background: var(--accent-blue); }
+        .rec-btn { background: var(--accent-red); }
+        .rec-btn.recording { animation: blink 1s infinite; }
+        .save-btn { background: var(--accent-green); }
+        .play-btn { background: var(--accent-purple); }
+        .formation-scroll { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; }
+        .storage-list { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; }
+        .storage-item { flex: 0 0 auto; background: #333; padding: 6px 12px; border-radius: 20px; font-size: 11px; border: 1px solid #444; display: flex; align-items: center; }
+        .storage-item.selected { border-color: var(--accent-blue); }
+        .delete-btn { background: #c0392b; border-radius: 50%; margin-left: 8px; width: 16px; height: 16px; color: white; border:none; font-size: 10px; }
+        #pitch-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .player, .ball { position: absolute; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; transform: translate(-50%, -50%); transition: transform 0.2s; }
+        .player { width: 8.5%; aspect-ratio: 1; border: 2px solid white; color: white; font-size: 11px; }
+        .team-top { background: var(--accent-red); }
+        .team-bottom { background: #0984e3; }
+        .ball { width: 6%; aspect-ratio: 1; background: radial-gradient(circle at 35% 35%, #fff, #ccc); z-index: 20; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+<div id="field-container">
+    <div id="pitch">
+        <svg id="pitch-svg" viewBox="0 0 100 167" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <clipPath id="clip-arc-top"><rect x="0" y="26.7" width="100" height="140.6"/></clipPath>
+                <clipPath id="clip-arc-bottom"><rect x="0" y="0" width="100" height="140.3"/></clipPath>
+            </defs>
+            <g fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="0.6">
+                <line x1="0" y1="83.5" x2="100" y2="83.5"/><circle cx="50" cy="83.5" r="16"/>
+                <rect x="21" y="0" width="58" height="26.7"/><rect x="37" y="0" width="26" height="10"/>
+                <ellipse cx="50" cy="26.7" rx="13.3" ry="7" clip-path="url(#clip-arc-top)"/>
+                <rect x="21" y="140.3" width="58" height="26.7"/><rect x="37" y="157" width="26" height="10"/>
+                <ellipse cx="50" cy="140.3" rx="13.3" ry="7" clip-path="url(#clip-arc-bottom)"/>
+            </g>
+        </svg>
+        <div id="ball" class="ball" data-id="ball" style="left: 50%; top: 50%;"></div>
+    </div>
+</div>
+
+<div id="controls">
+    <div class="zoom-controls">
+        <button onclick="changeZoom(-0.1)">-</button><span id="zoom-val">선수 크기 100%</span><button onclick="changeZoom(0.1)">+</button>
+    </div>
+    <div class="tactic-grid">
+        <button id="btn-rec" class="rec-btn" onclick="handleRecordClick()">녹화 시작</button>
+        <button id="btn-save" class="save-btn" onclick="saveTactics()" disabled>저장</button>
+        <button id="btn-play" class="play-btn" onclick="handlePlayClick()" disabled>전술 시작</button>
+    </div>
+    <div class="tactic-grid">
+        <button id="btn-top" onclick="selectTeam('top')">Red 팀</button>
+        <button id="btn-bottom" onclick="selectTeam('bottom')">Blue 팀</button>
+        <button onclick="resetAll()">초기화</button>
+    </div>
+    <div class="formation-scroll" id="formation-grid">
+        <button onclick="applyTactic('442')">4-4-2</button>
+        <button onclick="applyTactic('433')">4-3-3</button>
+        <button onclick="applyTactic('4231')">4-2-3-1</button>
+    </div>
+    <div class="storage-list" id="storage-list"></div>
+</div>
+
+<script>
+    /* JS 로직은 기존 소스와 동일하게 유지 (Admin용이므로 모든 기능 활성화) */
+    let currentActiveTeam = 'bottom', players = { top: [], bottom: [] };
+    let isRecording = false, isRecPaused = false, currentRecording = [], recStartTime = 0, totalPausedDuration = 0;
+    let isPlaying = false, isPaused = false, playTimers = [], currentFrameIndex = 0, playbackTacticData = [];
+    let selectedTacticKey = null, currentScale = 1.0;
+    const tactics = { '442': [[50,5],[18,16],[39,16],[61,16],[82,16],[18,31],[39,31],[61,31],[82,31],[35,44],[65,44]], '433': [[50,5],[18,16],[39,16],[61,16],[82,16],[27,29],[50,32],[73,29],[18,45],[50,47],[82,45]], '4231': [[50,5],[18,16],[38,16],[62,16],[82,16],[35,28],[65,28],[18,40],[50,40],[82,40],[50,48]] };
+
+    function init() { createTeam('top'); createTeam('bottom'); makeDraggable(document.getElementById('ball')); renderStorageList(); }
+    function createTeam(team) {
+        for (let i = 0; i < 11; i++) {
+            const p = document.createElement('div'); p.className = `player team-${team}`;
+            p.dataset.id = `${team}-${i}`; p.innerText = i + 1;
+            document.getElementById('pitch').appendChild(p); players[team].push(p);
+            p.style.left = team==='top'?'10%':'90%'; p.style.top = `${(i*8)+10}%`;
+            makeDraggable(p);
+        }
+    }
+    function makeDraggable(el) {
+        let dragging = false;
+        const move = (e) => {
+            if (!dragging || isPlaying) return;
+            const rect = document.getElementById('pitch').getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const px = ((clientX - rect.left) / rect.width) * 100 + '%';
+            const py = ((clientY - rect.top) / rect.height) * 100 + '%';
+            el.style.left = px; el.style.top = py;
+            if (isRecording && !isRecPaused) recordFrame(el.dataset.id || 'ball', px, py);
+        };
+        el.onmousedown = el.ontouchstart = () => dragging = true;
+        window.onmousemove = window.ontouchmove = (e) => move(e);
+        window.onmouseup = window.ontouchend = () => dragging = false;
+    }
+    function recordFrame(id, x, y) {
+        const time = Date.now() - recStartTime - totalPausedDuration;
+        currentRecording.push({ t: time, id, x, y, s: currentScale });
+    }
+    function handleRecordClick() {
+        if (!isRecording) {
+            isRecording = true; recStartTime = Date.now(); currentRecording = [];
+            document.getElementById('btn-rec').innerText = "일시정지";
+            document.getElementById('btn-rec').classList.add('recording');
+        } else {
+            isRecPaused = !isRecPaused;
+            document.getElementById('btn-rec').innerText = isRecPaused ? "재개" : "일시정지";
+            document.getElementById('btn-save').disabled = false;
+        }
+    }
+    function saveTactics() {
+        const name = prompt("전술 이름:"); if(!name) return;
+        localStorage.setItem(`tactic_${Date.now()}`, JSON.stringify({ name, data: currentRecording }));
+        location.reload();
+    }
+    function renderStorageList() {
+        const list = document.getElementById('storage-list');
+        Object.keys(localStorage).filter(k => k.startsWith('tactic_')).forEach(key => {
+            const item = JSON.parse(localStorage.getItem(key));
+            const div = document.createElement('div'); div.className = 'storage-item';
+            div.innerHTML = `<span>${item.name}</span><button class="delete-btn" onclick="localStorage.removeItem('${key}');location.reload()">×</button>`;
+            div.onclick = () => { selectedTacticKey = key; document.getElementById('btn-play').disabled = false; };
+            list.appendChild(div);
+        });
+    }
+    function handlePlayClick() {
+        const data = JSON.parse(localStorage.getItem(selectedTacticKey)).data;
+        isPlaying = true;
+        data.forEach(f => {
+            setTimeout(() => {
+                const el = f.id === 'ball' ? document.getElementById('ball') : document.querySelector(`[data-id="${f.id}"]`);
+                if(el) { el.style.left = f.x; el.style.top = f.y; }
+            }, f.t);
+        });
+    }
+    function applyTactic(n) {
+        players[currentActiveTeam].forEach((p, i) => {
+            p.style.left = tactics[n][i][0] + '%';
+            p.style.top = (currentActiveTeam === 'top' ? tactics[n][i][1] : 100 - tactics[n][i][1]) + '%';
+        });
+    }
+    function selectTeam(t) { currentActiveTeam = t; }
+    function changeZoom(v) { currentScale += v; document.getElementById('pitch').style.transform = `scale(${currentScale})`; }
+    function resetAll() { location.reload(); }
+    init();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+/* style.css */
+:root { --line-color: rgba(255, 255, 255, 0.92); --accent-blue: #007AFF; ... }
+html, body { height: 100%; margin: 0; overflow: hidden; background-color: #1a1a1a; }
+#field-container { flex: 1; display: flex; justify-content: center; background: #1a3a1a; position: relative; }
+#pitch { position: relative; width: 100%; max-width: 450px; background-color: #2e8b3a; ... }
+.player, .ball { position: absolute; border-radius: 50%; ... }
+/* 기존 CSS 모두 포함 */

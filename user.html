@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tactics Player - Viewer</title>
+    <style>
+        /* 스타일은 위와 동일하지만 관리용 버튼 스타일 일부 제거 */
+        :root { --accent-purple: #6c5ce7; --accent-blue: #007AFF; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; }
+        #field-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #1a3a1a; position: relative; }
+        #pitch { position: relative; width: 100%; max-width: 450px; height: 100%; aspect-ratio: 450 / 750; background-color: #2e8b3a; border: 3px solid rgba(255,255,255,0.5); }
+        #controls { background: #222; color: white; padding: 15px; z-index: 100; border-top: 2px solid #444; }
+        button { width: 100%; padding: 12px; margin-bottom: 8px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
+        .play-btn { background: var(--accent-purple); color: white; }
+        .storage-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; }
+        .storage-item { flex: 0 0 auto; background: #333; padding: 8px 15px; border-radius: 20px; font-size: 12px; border: 1px solid #444; }
+        .storage-item.selected { border-color: var(--accent-blue); background: #1e3a5f; }
+        .player, .ball { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); transition: left 0.1s linear, top 0.1s linear; }
+        .player { width: 8.5%; aspect-ratio: 1; border: 2px solid white; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+        .team-top { background: #d63031; }
+        .team-bottom { background: #0984e3; }
+        .ball { width: 6%; aspect-ratio: 1; background: white; }
+        #pitch-svg { position: absolute; width: 100%; height: 100%; pointer-events: none; }
+    </style>
+</head>
+<body>
+<div id="field-container">
+    <div id="pitch">
+        <div id="ball" class="ball"></div>
+    </div>
+</div>
+
+<div id="controls">
+    <div class="storage-list" id="storage-list"></div>
+    <button id="btn-play" class="play-btn" onclick="startPlayback()" disabled>전술을 선택하세요</button>
+</div>
+
+<script>
+    let selectedTacticKey = null;
+    const pitch = document.getElementById('pitch');
+
+    function init() {
+        createTeam('top'); createTeam('bottom');
+        renderList();
+    }
+
+    function createTeam(team) {
+        for (let i = 0; i < 11; i++) {
+            const p = document.createElement('div');
+            p.className = `player team-${team}`; p.dataset.id = `${team}-${i}`;
+            p.innerText = i + 1; pitch.appendChild(p);
+        }
+    }
+
+    function renderList() {
+        const list = document.getElementById('storage-list');
+        Object.keys(localStorage).filter(k => k.startsWith('tactic_')).forEach(key => {
+            const item = JSON.parse(localStorage.getItem(key));
+            const div = document.createElement('div');
+            div.className = 'storage-item';
+            div.innerText = item.name;
+            div.onclick = () => {
+                selectedTacticKey = key;
+                document.querySelectorAll('.storage-item').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                document.getElementById('btn-play').disabled = false;
+                document.getElementById('btn-play').innerText = `"${item.name}" 재생`;
+            };
+            list.appendChild(div);
+        });
+    }
+
+    function startPlayback() {
+        const data = JSON.parse(localStorage.getItem(selectedTacticKey)).data;
+        data.forEach(f => {
+            setTimeout(() => {
+                const el = f.id === 'ball' ? document.getElementById('ball') : document.querySelector(`[data-id="${f.id}"]`);
+                if(el) { el.style.left = f.x; el.style.top = f.y; }
+            }, f.t);
+        });
+    }
+    init();
+</script>
+</body>
+</html>

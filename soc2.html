@@ -208,7 +208,7 @@
                 <line x1="0" y1="83.5" x2="100" y2="83.5"/>
 
                 <!-- 센터 서클 (반지름 11%) -->
-                <circle cx="50" cy="83.5" r="11"/>
+                <circle cx="50" cy="83.5" r="16"/>
                 <!-- 센터 스팟 -->
                 <circle cx="50" cy="83.5" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
 
@@ -220,7 +220,8 @@
                 <!-- 페널티 아크 TOP: 페널티박스 하단선(y=26.7) 바깥으로 튀어나온 반원
                      중심 = (50, 26.7), r = 약 9.8% (= 페널티스팟~박스하단 거리와 같은 반지름)
                      페널티박스 상단(y=0~26.7) 영역을 제외하고 그림 -->
-                <circle cx="50" cy="26.7" r="9.8" clip-path="url(#clip-arc-top)" stroke-width="0.6"/>
+                <!--circle cx="50" cy="26.7" r="9.8" clip-path="url(#clip-arc-top)" stroke-width="0.6"/-->
+				<ellipse cx="50" cy="26.7" rx="13.3" ry="7" clip-path="url(#clip-arc-top)" stroke-width="0.6"/>
                 <!-- 페널티 스팟 TOP (11% = 18.4) -->
                 <circle cx="50" cy="18.4" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
 
@@ -229,7 +230,8 @@
                 <!-- 골 에어리어 (y=167-10=157) -->
                 <rect x="37" y="157" width="26" height="10" stroke-width="0.6"/>
                 <!-- 페널티 아크 BOTTOM: 박스 상단선(y=140.3) 바깥으로 튀어나온 반원 -->
-                <circle cx="50" cy="140.3" r="9.8" clip-path="url(#clip-arc-bottom)" stroke-width="0.6"/>
+                <!--circle cx="50" cy="140.3" r="9.8" clip-path="url(#clip-arc-bottom)" stroke-width="0.6"/-->
+				<ellipse cx="50" cy="140.3" rx="13.3" ry="7" clip-path="url(#clip-arc-bottom)" stroke-width="0.6"/>
                 <!-- 페널티 스팟 BOTTOM (bottom 11% → y=167-18.4=148.6) -->
                 <circle cx="50" cy="148.6" r="0.8" fill="rgba(255,255,255,0.92)" stroke="none"/>
 
@@ -500,6 +502,7 @@
         setUIState(false);
         selectTeam('bottom');
         renderStorageList();
+		location.reload();
     }
 
     function renderStorageList() {
